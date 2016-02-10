@@ -1,0 +1,134 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+
+import os, sys
+import getpass
+from xml.dom import minidom
+
+#########################################################
+# Functions                                             #
+#########################################################
+### 
+    
+def GetDataFolder():
+    pf = sys.platform.lower()
+    usr = getpass.getuser()
+    udf = ""
+    if pf == 'linux' or pf == 'linux2':
+        udf = '/home/%s/.kodi/'%usr
+    elif pf == 'windows':
+        udf = 'C:\\Users\\%s\\AppData\\Roaming\\Kodi\\'%usr
+    elif pf == 'android':
+        udf = '/sdcard/Android/data/org.xbmc.kodi/files/.kodi/'
+    elif pf == 'ios':
+        udf = '/private/var/mobile/Library/Preferences/Kodi/'
+    elif pf == 'darwin':
+        udf = '/Users/%s/Library/Application Support/Kodi/'%usr
+    return udf
+
+def GetSourceFolder(folder=None):
+    src = ""
+    if folder == None:
+        src = os.path.join(GetDataFolder(),"userdata/guisettings.xml")
+    else:
+        if os.path.isdir(folder):
+            src = os.path.join(folder,"guisettings.xml")
+        elif os.path.isfile(folder):
+            src = folder
+    return src
+    
+def GetDestFolder(name,folder=None):
+    dst = ""
+    if folder == None:
+        dst = os.path.join(os.path.join(os.path.join(GetDataFolder(),"userdata/addon_data"),name),"settings.xml")
+    else:
+        if os.path.isdir(folder):
+            dst = os.path.join(folder,"settings.xml")
+        else:
+            dst = folder
+    return dst
+    
+def CopySettings(name,src,dest):   
+    try:
+        dfile = open(dest, "w")
+        dfile.write("<settings>\n")
+        __xml = minidom.parse(src)
+        nodes = __xml.getElementsByTagName("settings")
+        if nodes:
+            for node in nodes:
+                anodes=node.getElementsByTagName('skinsettings')
+                for a in anodes:
+                    aid=node.getElementsByTagName('setting')
+                    for b in aid:
+                        aname=b.getAttribute("name")
+                        if name in aname: 
+                            atype=b.getAttribute("type")
+                            if (len(b.childNodes) > 0):
+                                avalue=b.childNodes[0].data
+                            else:
+                                avalue=""
+                            aid = aname.replace("%s."%name, "", 1)
+                            dfile.write("    <setting id=\"%s\" type=\"%s\">%s</setting>\n"%(aid,atype,avalue))
+                            print ".",
+        dfile.write("</settings>")
+        dfile.close()
+    except Exception, e:
+        print "Error reading from settingsfile: %s; %s" % (src,e)
+        exit()
+    return
+    
+def PrintHelp():
+    print("SkinSettingsConverter Usage: ")
+    print("Converts old skinsettings (<v16) to new settings (v16>)")
+    print("-h: show this help")
+    print("-s <skin name>: Select skin name (Default: skin.xonfluence)")
+    print("-g <folder>: Folder containing guisettings.xml (Default: kodi/userdata/)")
+    print("-d <folder>: Folder containing settings.xml for Jarvis and up(Default: kodi/userdata/addon_data/skin.xonfluence)")
+
+if __name__ == "__main__":
+    __skin_name__ = "skin.xonfluence"
+    __source_folder__ = GetSourceFolder()
+    __dest_folder__ = ""
+    
+    if len(sys.argv) > 1:
+        i = 1
+        cmd = True
+        while i < len(sys.argv):
+            if cmd:
+                if sys.argv[i].lower() == "-h":
+                    PrintHelp()
+                    exit()
+                elif sys.argv[i].lower() == "-s":
+                    cmd = False
+                elif sys.argv[i].lower() == "-g":
+                    cmd = False
+                elif sys.argv[i].lower() == "-d":
+                    cmd = False
+                else:
+                    writeLog("Invalid option: %s" % sys.argv[i])
+            else:
+                if sys.argv[i-1].lower() == "-s":
+                    __skin_name__ = sys.argv[i]
+                    cmd = True
+                elif sys.argv[i-1].lower() == "-g":
+                    __source_folder__ = GetSourceFolder(sys.argv[i])
+                    cmd = True
+                elif sys.argv[i-1].lower() == "-d":
+                    __dest_folder__ = GetDestFolder(__skin_name__,sys.argv[i])
+                    cmd = True
+                else:
+                    writeLog("Error in options: %s" % sys.argv[i])
+            i += 1
+        
+    if (__dest_folder__ == ""):
+        __dest_folder__ = GetDestFolder(__skin_name__)
+        
+    if (__source_folder__ == ""):    
+        print "Error: Source file non-existent"
+        exit()
+    
+    print "Skin name:"+__skin_name__
+    print "Source folder:"+__source_folder__
+    print "Destination folder:"+__dest_folder__
+    
+    CopySettings(__skin_name__,__source_folder__,__dest_folder__)
